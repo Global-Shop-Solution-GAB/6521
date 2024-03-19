@@ -1,0 +1,94 @@
+﻿Program.Sub.Preflight.Start
+V.Global.sError.Declare(String)
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Author: Arturo Almaguer
+'Date: 21 October 2021
+'Customer: Eagle Pump & Compressor, quote number 13121
+'This program populates contact information in PO Header 
+'This script is launched off 16850 populate hook from PO Header Screen
+
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+
+F.Intrinsic.Control.Try
+
+	V.Local.sVendor.Declare(String)
+	V.Local.sSQL.Declare(String)
+	V.Local.sTitles.Declare(String)
+	V.Local.iWidths.Declare(Long)
+	V.Local.sSelectedContact.Declare(String)
+	
+	V.Local.sVendor.Set(V.Passed.000011)
+	
+	f.Intrinsic.Control.If(V.Caller.Switches, =, "N")
+	
+		'Getting vendor contacts in which the contact is flagged for E-Acknowledgement and creating dt
+		F.ODBC.Connection!Con.OpenCompanyConnection
+		Function.Intrinsic.String.Build("select RTRIM(A.CUST) CUSTOMER, RTRIM(A.NAME) NAME, RTRIM(A.EMAIL1) EMAIL, RTRIM(A.PHONE1) PHONE_NUMBER from CONTACT A inner join CRM_CONTACT_AUX B on A.ALT_ID = B.CID where B.E_PROG_SETTINGS <> 0 and A.CUST = '{0}' and A.EMAIL1 <> '' and A.TYPE = 'V' order by A.NAME", V.Local.sVendor, V.Local.sSQL)
+		f.Data.DataTable.CreateFromSQL("dtContacts", "Con", V.Local.sSQL, True)
+		
+		F.Intrinsic.Control.If(V.DataTable.dtContacts.RowCount, >, 1)
+			'Scenario 1: Multiple contacts flagged for E-Acknowledgement
+			
+			'Creating browser to allow the suer to select the contact they want
+			F.Intrinsic.String.Split("Customer*!*Contact Name*!*Email*!*Phone Number","*!*",V.Local.sTitles)
+			F.Intrinsic.String.Split("100*!*200*!*200*!*200","*!*",V.Local.iWidths)
+			
+			F.Intrinsic.String.Build("select RTRIM(A.CUST) CUSTOMER, RTRIM(A.NAME) NAME, RTRIM(A.EMAIL1) EMAIL, RTRIM(A.PHONE1) PHONE_NUMBER from CONTACT A inner join CRM_CONTACT_AUX B on A.ALT_ID = B.CID where B.E_PROG_SETTINGS <> 0 and A.CUST = '{0}' and A.EMAIL1 <> '' order by A.NAME", V.Local.sVendor, V.Local.sSQL)
+			F.Intrinsic.UI.Browser("GCG 6521","Con", V.Local.sSQL, V.Local.sTitles, V.Local.iWidths, V.Local.sSelectedContact)
+			
+			F.Intrinsic.Control.If(V.Local.sSelectedContact.IsNotCancel)
+				
+				'If a record was chosen from the browser, set field values
+				F.Intrinsic.String.Split(V.Local.sSelectedContact, "*!*", V.Local.sSelectedContact)	
+				
+				'000043 = Contact Name, 000045 = Phone Number, 000046 = Email Address
+				V.Passed.000043.Set(V.Local.sSelectedContact(1))
+				V.Passed.000045.Set(V.Local.sSelectedContact(3))
+				V.Passed.000046.Set(V.Local.sSelectedContact(2))
+			
+			F.Intrinsic.Control.Else
+				
+				'Msgbox to let user know no contact was chosen
+				F.Intrinsic.UI.Msgbox("No contact was selected. Fields will be left as blank.")
+		
+			F.Intrinsic.Control.EndIf
+			
+		F.Intrinsic.Control.ElseIf(V.DataTable.dtContacts.RowCount, =, 1)
+			
+			'Scenario 2: Just one contact flagged for E-Acknowledgement
+			
+			'000043 = Contact Name, 000045 = Phone Number, 000046 = Email Address
+			V.Passed.000043.Set(V.DataTable.dtContacts(0).NAME!FieldValTrim)
+			V.Passed.000045.Set(V.DataTable.dtContacts(0).PHONE_NUMBER!FieldValTrim)
+			V.Passed.000046.Set(V.DataTable.dtContacts(0).EMAIL!FieldValTrim)
+		
+		F.Intrinsic.Control.Else
+			
+			'Scenario 3: No contacts flagged for E-Acknowledgement
+			'do nothing, leave fields as blank
+		
+		f.Intrinsic.Control.EndIf
+		F.ODBC.Connection!Con.Close
+	
+	f.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.Catch
+
+	F.Intrinsic.Control.CallSub(CatchError)
+	
+F.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
+Program.Sub.CatchError.Start
+F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}", V.Ambient.ScriptPath, V.Ambient.Newline, V.Ambient.SubroutineCalledFrom, V.Ambient.ErrorNumber, V.Ambient.ErrorDescription, V.Ambient.GABVersion, V.Global.sError) 
+F.Intrinsic.UI.Msgbox(V.Global.sError)
+F.Intrinsic.Control.End()
+Program.Sub.CatchError.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$apadilla$}$20211022094620417$}$Lag9STqBJOmNXSbd5+msRcBWPGz0aFqSwHruISZ+s7wKBJ2RMLA4A2+bqqAOqqcvJRQK0je2XCIHmcQixtme3w==
+Program.Sub.Comments.End
